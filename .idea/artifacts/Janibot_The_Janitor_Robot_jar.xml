@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="Janibot The Janitor Robot:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/Janibot_The_Janitor_Robot_jar</output-path>
+    <root id="archive" name="Janibot The Janitor Robot.jar">
+      <element id="module-output" name="Janibot The Janitor Robot" />
+    </root>
+  </artifact>
+</component>

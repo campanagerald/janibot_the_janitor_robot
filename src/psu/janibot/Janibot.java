@@ -1,0 +1,315 @@
+package psu.janibot;
+
+import psu.janibot.util.Direction;
+import psu.janibot.util.ImageLoader;
+import psu.janibot.view.SimulationPanel;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
+import java.awt.image.BufferedImage;
+
+public class Janibot implements Runnable{
+
+    private Image janibotImage = new ImageLoader().loadImage("/images/game/janibot.png");
+    private ImageIcon explodeImage = new ImageIcon(Program.class.getResource("/images/game/explotion.gif"));
+    private ImageIcon sweepImage = new ImageIcon(Program.class.getResource("/images/game/sweep.gif"));
+    private Thread thread;
+    private boolean running = false;
+    private boolean explode = false;
+    private boolean sweep = false;
+    private int speed = 10;
+    private int bag = 0;
+    private int totalDirtCollected = 0;
+    private int step = 0;
+    private Direction direction;
+    private Point location;
+    private Program program;
+
+    public void go() {
+        if (!running) {
+            return;
+        }
+        program.go();
+    }
+
+    public void right() {
+        if (!running) {
+            return;
+        }
+
+        switch (direction) {
+            case NORTH: {
+                rotateImg();
+                direction = Direction.EAST;
+                break;
+            }
+            case EAST: {
+                rotateImg();
+                direction = Direction.SOUTH;
+                break;
+            }
+            case WEST: {
+                rotateImg();
+                direction = Direction.NORTH;
+                break;
+            }
+            case SOUTH: {
+                rotateImg();
+                direction = Direction.WEST;
+                break;
+            }
+        }
+
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void left() {
+        if (!running) {
+            return;
+        }
+        switch (direction) {
+            case NORTH: {
+                rotateImg();
+                rotateImg();
+                rotateImg();
+                direction = Direction.WEST;
+                break;
+            }
+            case EAST: {
+                rotateImg();
+                rotateImg();
+                rotateImg();
+                direction = Direction.NORTH;
+                break;
+            }
+            case WEST: {
+                rotateImg();
+                rotateImg();
+                rotateImg();
+                direction = Direction.SOUTH;
+                break;
+            }
+            case SOUTH: {
+                rotateImg();
+                rotateImg();
+                rotateImg();
+                direction = Direction.EAST;
+                break;
+            }
+        }
+
+        try {
+            //Thread.sleep(2);
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void pick() {
+        if (!running) {
+            return;
+        }
+
+        program.pick();
+    }
+
+    public boolean wall(){
+        if (!running) {
+            return false;
+        }
+        return program.checkWall();
+    }
+
+    public boolean dirt() {
+
+        if (!running) {
+            return false;
+        }
+
+        return program.dirt();
+    }
+
+    public boolean north() {
+
+        if (!running) {
+            return false;
+        }
+
+        if (direction != Direction.NORTH) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public boolean empty() {
+
+        if (!running) {
+            return false;
+        }
+
+        if(bag == 0){
+            return true;
+        }
+
+        return false;
+    }
+
+    public boolean trashcan() {
+        if (!running) {
+            return false;
+        }
+
+        return program.trashcan();
+    }
+
+    public void put(){
+        if (!running){
+            return;
+        }
+
+        program.put();
+    }
+
+    public Direction getDirection() {
+        return direction;
+    }
+
+    public void setDirection(Direction direction) {
+        this.direction = direction;
+
+        switch (direction){
+            case NORTH:{
+                rotateImg();
+                rotateImg();
+                rotateImg();
+                break;
+            }case EAST:{
+                break;
+            }
+            case WEST:{
+                rotateImg();
+                rotateImg();
+                break;
+            }case SOUTH:{
+                rotateImg();
+            }
+        }
+    }
+
+    public Point getLocation() {
+        return location;
+    }
+
+    public void setLocation(Point location) {
+        this.location = location;
+        this.location.x = this.location.x * 40;
+        this.location.y = this.location.y * 40;
+    }
+
+    public int getBag() {
+        return bag;
+    }
+
+    public int getStep() {
+        return step;
+    }
+
+    public void setStep(int step) {
+        this.step += step;
+    }
+
+    public void setBag(int bag) {
+        this.bag += bag;
+        this.totalDirtCollected += bag;
+    }
+
+    public void emptyBag() {
+        this.bag = 0;
+    }
+
+    public void setProgram(Program program) {
+        this.program = program;
+    }
+
+    public void setExplode(boolean explode) {
+        this.explode = explode;
+    }
+
+    public void setSweep(boolean sweep) {
+        this.sweep = sweep;
+    }
+
+    public int getSpeed() {
+        return speed;
+    }
+
+    public int getTotalDirtCollected() {
+        return totalDirtCollected;
+    }
+
+    public void draw(Graphics g) {
+
+        g.drawImage(janibotImage, location.x, location.y, null);
+
+        if(explode){
+            explodeImage.paintIcon(null, g, location.x, location.y);
+        }
+
+        if(sweep){
+            sweepImage.paintIcon(null, g, location.x, location.y);
+        }
+    }
+
+    private void rotateImg(){   //rotates 90 degrees
+
+        int w = janibotImage.getWidth(null);
+        int h = janibotImage.getHeight(null);
+
+        rescale(w, h);
+    }
+
+    private void rescale(int w, int h) {
+
+        double angel=Math.PI/2;
+
+        AffineTransform tx = new AffineTransform();
+        tx.rotate(angel, w / 2, h / 2);
+
+        AffineTransformOp op = new AffineTransformOp(tx,AffineTransformOp.TYPE_BILINEAR);
+
+        janibotImage = op.filter( (BufferedImage) janibotImage, null);
+    }
+
+    public synchronized void start() {
+
+        if(running){
+            return;
+        }
+
+        running = true;
+        thread = new Thread(this);
+        thread.start();
+    }
+
+    public synchronized void stop(){
+        running = false;
+    }
+
+    @Override
+    public void run() {
+        startRun();
+        program.programFinished();
+    }
+
+    public void startRun() {
+				
+    }
+}

@@ -1,0 +1,447 @@
+package psu.janibot.util;
+
+import javax.swing.*;
+import javax.tools.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+
+public class Compiler {
+
+    private static final String ROBOTSOURCEPATH = System.getProperty("user.home") + "/Documents/Janibot/lib/Robot.java";
+    private String message;
+
+    private String[] methods = { "go", "right", "left", "pick", "put" };
+    private String[] sensors = {"wall", "dirt", "north", "trashcan", "empty"};
+
+    private Statement statement;
+
+    private ArrayList<String> customMethods = new ArrayList<>();
+
+    private VariableNameGenerator variableNameGenerator = new VariableNameGenerator();
+
+    public boolean compile(){
+
+		//stackoverflow
+        File Robot = new File(ROBOTSOURCEPATH);
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
+
+        ArrayList optionList = new ArrayList<>();
+        optionList.add("-classpath");
+        optionList.add(System.getProperty("java.class.path"));
+
+        Iterable<? extends JavaFileObject> compilationUnit = fileManager.getJavaFileObjectsFromFiles(Arrays.asList(Robot));
+        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, optionList, null, compilationUnit);
+
+        if (!task.call()) {
+            for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+                String s = diagnostic.toString();
+                if (s.contains("reached end of file while parsing")) {
+                    String errorLineNumber = getErrorLineNumber(s);
+                    String error = "Error line " + errorLineNumber +": " + "maybe a block of statement(s) is not closed by 'end'";
+                    message = error;
+                    break;
+                }else{
+                    message = s;
+                    break;
+                }
+            }
+            return false;
+
+        }
+
+        message = "Compilation successful!";
+        return true;
+    }
+
+    public void codeGenerator(String s) {
+
+        FileWriter fileWriter = null;
+        boolean hasDef = false;
+        int startDefIndex = 0;
+
+        try {
+
+            File file = new File(ROBOTSOURCEPATH);
+            file.getParentFile().mkdirs();
+            fileWriter = new FileWriter(file);
+
+            fileWriter.write("import psu.janibot.Janibot;\n" +
+                    "\n" +
+                    "public class Robot extends Janibot{\n" +
+                    "\t@Override\n" +
+                    "\tpublic void startRun() { \n");
+
+            String[] strings = s.trim().split("\n");
+
+            for (int i = 0; i < strings.length; i++) {
+
+                    if (isWhitespace(strings[i])) {
+                        fileWriter.write("\n");
+                        continue;
+                    }
+
+                    String[] tokens = strings[i].split(" ");
+
+                    for (int j = 0; j < tokens.length; j++) {
+                        tokens[j] = tokens[j].replaceAll("\\s+", "");
+                    }
+
+                    if(!strings[i].contains("def")) {
+                        if (tokens[0].equals("repeat")) {
+                            String variable;
+                            while ((variable = variableNameGenerator.generate()).equals("")) ;
+                            fileWriter.write("for (int " + variable + " = 0; " + variable + " < " + tokens[1] + "; " + variable + "++ ) {\n");
+                        } else if (tokens.length == 2 && tokens[0].equals("while")) {
+                            fileWriter.write("while (" + tokens[1] + "()) {\n");
+                        } else if (tokens.length == 3 && tokens[0].equals("while")) {
+                            fileWriter.write("while (!" + tokens[2] + "()) {\n");
+                        } else if (tokens.length == 2 && tokens[0].equals("if")) {
+                            fileWriter.write("if (" + tokens[1] + "()) {\n");
+                        } else if (tokens.length == 3 && tokens[0].equals("if")) {
+                            fileWriter.write("if (!" + tokens[2] + "()) {\n");
+                        } else if (tokens.length == 3 && tokens[0].equals("else")) {
+                            fileWriter.write("else if (" + tokens[2] + "()){\n");
+                        } else if (tokens.length == 4 && tokens[0].equals("else")) {
+                            fileWriter.write("else if (!" + tokens[3] + "()){\n");
+                        } else if (tokens.length == 1 && tokens[0].equals("else")) {
+                            fileWriter.write("else  \n {");
+                        } else if (tokens.length == 1 && tokens[0].equals("end")) {
+                            fileWriter.write("} \n");
+                        } else if (tokens.length == 2 && tokens[0].equals("def")) {
+                            fileWriter.write("private void " + tokens[1] + "() {\n");
+                        } else {
+                            fileWriter.write(tokens[0] + "(); \n");
+                        }
+                    }else{
+                        hasDef = true;
+                        startDefIndex = i;
+                        break;
+                    }
+            }
+
+            fileWriter.write("}\n");
+
+            if(hasDef){
+
+                for (int i = startDefIndex; i < strings.length; i++) {
+
+                    if (isWhitespace(strings[i])) {
+                        fileWriter.write("\n");
+                        continue;
+                    }
+
+                    String[] tokens = strings[i].split(" ");
+
+                    for (int j = 0; j < tokens.length; j++) {
+                        tokens[j] = tokens[j].replaceAll("\\s+", "");
+                    }
+
+                    if (tokens[0].equals("repeat")) {
+                        String variable;
+                        while ((variable = variableNameGenerator.generate()).equals("")) ;
+                        fileWriter.write("for (int " + variable + " = 0; " + variable + " < " + tokens[1] + "; " + variable + "++ ) {\n");
+                    } else if (tokens.length == 2 && tokens[0].equals("while")) {
+                        fileWriter.write("while (" + tokens[1] + "()) {\n");
+                    } else if (tokens.length == 3 && tokens[0].equals("while")) {
+                        fileWriter.write("while (!" + tokens[2] + "()) {\n");
+                    } else if (tokens.length == 2 && tokens[0].equals("if")) {
+                        fileWriter.write("if (" + tokens[1] + "()) {\n");
+                    } else if (tokens.length == 3 && tokens[0].equals("if")) {
+                        fileWriter.write("if (!" + tokens[2] + "()) {\n");
+                    } else if (tokens.length == 3 && tokens[0].equals("else")) {
+                        fileWriter.write("else if (" + tokens[2] + "()){\n");
+                    } else if (tokens.length == 4 && tokens[0].equals("else")) {
+                        fileWriter.write("else if (!" + tokens[3] + "()){\n");
+                    } else if (tokens.length == 1 && tokens[0].equals("else")) {
+                        fileWriter.write("else  \n {");
+                    } else if (tokens.length == 1 && tokens[0].equals("end")) {
+                        fileWriter.write("} \n");
+                    } else if (tokens.length == 2 && tokens[0].equals("def")) {
+                        fileWriter.write("private void " + tokens[1] + "() {\n");
+                    } else {
+                        fileWriter.write(tokens[0] + "(); \n");
+                    }
+                }
+            }
+
+            fileWriter.write("}\n");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }finally {
+            try {
+                fileWriter.close();
+                variableNameGenerator.reset();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public boolean syntaxAnalyzer(String s) {
+
+        String[] strings = s.trim().split("\n");
+
+        // check if has custom methods
+        if(s.contains("def")){
+            for (int i = 0; i < strings.length; i++){
+
+                if(isWhitespace(strings[i])){
+                    continue;
+                }
+
+                if(strings[i].contains("def")){
+                    statement = analyzeCustomMethods(strings[i]);
+
+                    switch (statement){
+
+                        case DEF:{
+
+                            String[] token = strings[i].trim().split(" ");
+
+                            if(checkInteger(token[1])){
+                                message = "Error Line: " + (i + 1) + ": \'" + token[1] + "\' must not be numeric type";
+                                return false;
+                            }else if(checkMethods(token[1])){
+                                message = "Error Line: " + (i + 1) + ": \'" + token[1] + "\' is one of the method of Janibot";
+                                return false;
+                            }else{
+                                customMethods.add(token[1]);
+                            }
+                            break;
+                        }
+
+                        case ERROR:{
+                            message = "Error Line: " + (i + 1);
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+
+        for (int i = 0; i < strings.length; i++) {
+
+            //String[] t = strings[i].trim().split(" ");
+
+            if(isWhitespace(strings[i]) || strings[i].contains("def") || strings[i].contains("end")){
+                continue;
+            }
+
+            statement = checkStatement(strings[i].trim());
+
+            switch (statement){
+
+                case METHOD:{
+
+                    if(!checkMethods(strings[i])) {
+                        strings[i] = strings[i].replaceAll("\\s+", "");
+                        message = "Error Line: " + (i + 1) + ": undefined method '" + strings[i] + "'";
+                        return false;
+                    }
+                    break;
+                }
+                case REPEAT:{
+
+                    String[] token = strings[i].split(" ");
+
+                    if(!checkInteger(token[1])){
+                        message = "Error Line: " + (i + 1) + ": '" + token[1] + "' must be an integer";
+                        return false;
+                    }
+                    break;
+                }
+                case IF:{
+
+                    String[] token = strings[i].split(" ");
+
+                    if(token.length == 2){
+                        if(!checkSensors(token[1])){
+                            message = "Error Line: " + (i + 1) + ": '" + token[1] + "' must be a sensor (wall , dirt, north, trashcan, empty)";
+                            return false;
+                        }
+                    }
+
+                    if(token.length == 3){
+                        if(!token[1].equals("not")){
+                            message = "Error Line: " + (i + 1) + ": '" + token[1] + "' must be 'not'";
+                            return false;
+                        }else if(!checkSensors(token[2])){
+                            message = "Error Line: " + (i + 1) + ": '" + token[2] + "' must be a sensor (wall , dirt, north, trashcan, empty)";
+                            return false;
+                        }
+                    }
+
+                    break;
+                }
+
+                case ELSE_IF:{
+
+                    String[] token = strings[i].split(" ");
+
+                    if(token.length == 3){
+                        if(!checkSensors(token[2])){
+                            message = "Error Line: " + (i + 1) + ": '" + token[2] + "' must be a sensor (wall , dirt, north, trashcan, empty)";
+                            return false;
+                        }
+                    }
+
+                    if(token.length == 4){
+                        if(!token[2].equals("not")){
+                            message = "Error Line: " + (i + 1) + ": '" + token[2] + "' must be 'not'";
+                            return false;
+                        }
+                    }
+                    break;
+                }
+
+                case WHILE:{
+
+                    String[] token = strings[i].split(" ");
+
+                    if(token.length == 2){
+                        if(!checkSensors(token[1])){
+                            message = "Error Line: " + (i + 1) + ": '" + token[1] + "' must be a sensor (wall , dirt, north, trashcan, empty)";
+                            return false;
+                        }
+                    }
+
+                    if(token.length == 3){
+                        if(!token[1].equals("not")){
+                            message = "Error Line: " + (i + 1) + ": '" + token[1] + "' must be 'not'";
+                            return false;
+                        }else if(!checkSensors(token[2])){
+                            message = "Error Line: " + (i + 1) + ": '" + token[2] + "' must be a sensor (wall , dirt, north, trashcan, empty)";
+                            return false;
+                        }
+                    }
+
+                    break;
+                }
+
+                case ERROR:{
+                    message = "Error Line: " + (i + 1);
+                    return false;
+                }
+            }
+        }
+
+        customMethods.clear();
+        return true;
+    }
+
+    public Statement analyzeCustomMethods(String s){
+
+        String[] strings = s.split(" ");
+        strings[0] = strings[0].replaceAll("\\s+", "");
+
+        if(strings.length == 2 && strings[0].equals("def")){
+            return Statement.DEF;
+        }
+
+        return Statement.ERROR;
+    }
+
+    private String getErrorLineNumber(String s){
+        String trim = s.substring(s.indexOf("java") + 5);
+        String lineNumber = trim.substring(0, trim.indexOf(" ") - 1);
+        int number = Integer.parseInt(lineNumber);
+        return Integer.toString((number - 5));
+    }
+
+    private Statement checkStatement(String statement){
+
+        String[] s = statement.split(" ");
+        s[0] = s[0].replaceAll("\\s+", "");
+
+        if(s.length == 1) {
+            return Statement.METHOD;
+        }
+
+        if(s.length == 2 && s[0].equals("repeat")){
+            return Statement.REPEAT;
+        }
+
+        if(s.length == 3 && s[0].equals("if") || s.length == 2 && s[0].equals("if")){
+            return Statement.IF;
+        }else if(s.length == 3 && s[0].equals("else") && s[1].equals("if")){
+            return Statement.ELSE_IF;
+        }else if(s.length == 3 && s[0].equals("while") || s.length == 2 && s[0].equals("while")){
+            return Statement.WHILE;
+        }
+
+        if(s.length == 4 && s[0].equals("else") && s[1].equals("if")){
+            return Statement.ELSE_IF;
+        }
+
+        return Statement.ERROR;
+    }
+
+    private boolean checkInteger(String s){
+
+        try{
+            Integer.parseInt(s.trim());
+        }catch (Exception e){
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean checkMethods(String s){
+
+        s = s.replaceAll("\\s+", "");
+        for (String method: methods){
+            if(s.equals(method) || s.equals("else") || s.equals("end")){
+                return true;
+            }
+
+            for(String customMethod: customMethods){
+                if(s.equals(customMethod)){
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean checkSensors(String s){
+        s = s.replaceAll("\\s+", "");
+        for(String sensor: sensors){
+            if(s.equals(sensor)){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static boolean isWhitespace(String str) {
+        if (str == null) {
+            return false;
+        }
+        int sz = str.length();
+        for (int i = 0; i < sz; i++) {
+            if ((Character.isWhitespace(str.charAt(i)) == false)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    private enum Statement {
+        METHOD, REPEAT, ERROR, IF, ELSE_IF, WHILE, DEF
+    }
+}
